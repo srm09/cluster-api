@@ -752,6 +752,12 @@ func TestReconcileBootstrap(t *testing.T) {
 	}
 }
 
+var _ = Describe("Reconcile external", func() {
+	It("updates the owner references for existing machines managed by Machine Sets", func() {
+
+	})
+})
+
 func TestReconcileInfrastructure(t *testing.T) {
 	defaultMachine := clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{

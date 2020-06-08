@@ -114,6 +114,19 @@ func (r *MachineReconciler) reconcileExternal(ctx context.Context, cluster *clus
 		return external.ReconcileOutput{}, err
 	}
 
+	// With the migration from v1alpha2 to v1alpha3, Machine controllers should be the owner for the
+	// infra Machines, hence remove any existing machineset controller owner reference
+	if controller := metav1.GetControllerOf(obj); controller != nil && controller.Kind == "MachineSet" {
+		ownerRefs := util.RemoveOwnerRef(obj.GetOwnerReferences(), metav1.OwnerReference{
+			APIVersion: clusterv1.GroupVersion.Version,
+			Kind:       "MachineSet",
+			Name:       controller.Name,
+			UID:        controller.UID,
+			Controller: pointer.BoolPtr(true),
+		})
+		obj.SetOwnerReferences(ownerRefs)
+	}
+
 	// Set external object ControllerReference to the Machine.
 	if err := controllerutil.SetControllerReference(m, obj, r.scheme); err != nil {
 		return external.ReconcileOutput{}, err
