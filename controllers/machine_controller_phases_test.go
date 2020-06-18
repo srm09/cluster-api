@@ -647,6 +647,14 @@ func TestReconcileBootstrap(t *testing.T) {
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
 					"namespace": "default",
+					"ownerReferences": []interface{}{
+						map[string]interface{}{
+							"apiVersion": clusterv1.GroupVersion.String(),
+							"kind":       "Machine",
+							"name":       "m",
+							"uid":        "1",
+						},
+					},
 				},
 				"spec": map[string]interface{}{},
 				"status": map[string]interface{}{
@@ -681,13 +689,21 @@ func TestReconcileBootstrap(t *testing.T) {
 			},
 		},
 		{
-			name: "existing machine, bootstrap provider is not ready",
+			name: "existing machine, bootstrap provider is not ready, and ownerref updated",
 			bootstrapConfig: map[string]interface{}{
 				"kind":       "BootstrapMachine",
 				"apiVersion": "bootstrap.cluster.x-k8s.io/v1alpha3",
 				"metadata": map[string]interface{}{
 					"name":      "bootstrap-config1",
 					"namespace": "default",
+					"ownerReferences": []interface{}{
+						map[string]interface{}{
+							"apiVersion": clusterv1.GroupVersion.String(),
+							"kind":       "MachineSet",
+							"name":       "ms",
+							"uid":        "1",
+						},
+					},
 				},
 				"spec": map[string]interface{}{},
 				"status": map[string]interface{}{
@@ -748,15 +764,14 @@ func TestReconcileBootstrap(t *testing.T) {
 			if tc.expected != nil {
 				tc.expected(g, tc.machine)
 			}
+
+			obj, err := external.Get(context.Background(), r.Client, tc.machine.Spec.Bootstrap.ConfigRef, tc.machine.Namespace)
+			if err == nil {
+				g.Expect(obj.GetOwnerReferences()).NotTo(ContainRefOfKind("MachineSet"))
+			}
 		})
 	}
 }
-
-var _ = Describe("Reconcile external", func() {
-	It("updates the owner references for existing machines managed by Machine Sets", func() {
-
-	})
-})
 
 func TestReconcileInfrastructure(t *testing.T) {
 	defaultMachine := clusterv1.Machine{
@@ -808,6 +823,14 @@ func TestReconcileInfrastructure(t *testing.T) {
 				"metadata": map[string]interface{}{
 					"name":      "infra-config1",
 					"namespace": "default",
+					"ownerReferences": []interface{}{
+						map[string]interface{}{
+							"apiVersion": clusterv1.GroupVersion.String(),
+							"kind":       "MachineSet",
+							"name":       "ms",
+							"uid":        "1",
+						},
+					},
 				},
 				"spec": map[string]interface{}{
 					"providerID": "test://id-1",
@@ -955,6 +978,11 @@ func TestReconcileInfrastructure(t *testing.T) {
 
 			if tc.expected != nil {
 				tc.expected(g, tc.machine)
+			}
+
+			obj, err := external.Get(context.Background(), r.Client, &tc.machine.Spec.InfrastructureRef, tc.machine.Namespace)
+			if err == nil {
+				g.Expect(obj.GetOwnerReferences()).NotTo(ContainRefOfKind("MachineSet"))
 			}
 		})
 	}

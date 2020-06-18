@@ -18,11 +18,14 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/klog"
 	"k8s.io/klog/klogr"
@@ -107,3 +110,36 @@ var _ = AfterSuite(func() {
 		Expect(testEnv.Stop()).To(Succeed())
 	}
 })
+
+func ContainRefOfKind(kind string) types.GomegaMatcher {
+	return &refKindMatcher{
+		kind: kind,
+	}
+}
+
+type refKindMatcher struct {
+	kind string
+}
+
+func (matcher *refKindMatcher) Match(actual interface{}) (success bool, err error) {
+	ownerRefs, ok := actual.([]metav1.OwnerReference)
+	if !ok {
+		return false, fmt.Errorf("ContainRefOfKind matcher expects a slice of OwnerReference")
+	}
+
+	for _, ref := range ownerRefs {
+		if ref.Kind == matcher.kind {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (matcher *refKindMatcher) FailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected %+v to contain refs of Kind %s", actual, matcher.kind)
+}
+
+func (matcher *refKindMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected %+v not to contain refs of Kind %s", actual, matcher.kind)
+}
