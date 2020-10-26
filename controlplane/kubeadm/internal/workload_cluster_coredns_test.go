@@ -290,9 +290,9 @@ kind: ClusterConfiguration
 	// We are using testEnv as a workload cluster, and given that each test case assumes well known objects with specific
 	// Namespace/Name (e.g. The CoderDNS ConfigMap & Deployment, the kubeadm ConfigMap), it is not possible to run the use cases in parallel.
 	for _, tt := range tests {
-		g := NewWithT(t)
-
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
 			for _, o := range tt.objs {
 				// NB. deep copy test object so changes applied during a test does not affect other tests.
 				o := o.DeepCopyObject().(client.Object)
@@ -315,6 +315,7 @@ kind: ClusterConfiguration
 				_ = testEnv.Cleanup(ctx, tt.objs...)
 				g.Eventually(func() bool {
 					for _, o := range []client.Object{cm, depl, kubeadmCM, badCM} {
+						o := o.DeepCopyObject().(client.Object)
 						key, _ := client.ObjectKeyFromObject(o)
 						err := testEnv.Get(ctx, key, o)
 						if err == nil || (err != nil && !apierrors.IsNotFound(err)) {
