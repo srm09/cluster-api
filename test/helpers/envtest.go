@@ -70,6 +70,13 @@ func init() {
 
 var (
 	env *envtest.Environment
+
+	// objectConfirmationTimeout is the amount of time allowed to assert object creation success.
+	objectConfirmationTimeout = 10 * time.Second
+
+	// objectConfirmationInterval is the amount of time between polling for the success of object creation.
+	// The polling is against a local memory cache.
+	objectConfirmationInterval = 10 * time.Millisecond
 )
 
 func init() {
@@ -299,7 +306,7 @@ func (t *TestEnvironment) CreateKubeconfigSecret(ctx context.Context, cluster *c
 }
 
 func (t *TestEnvironment) Cleanup(ctx context.Context, objs ...client.Object) error {
-	errs := []error{}
+	errs := make([]error, 0, len(objs))
 	for _, o := range objs {
 		err := t.Client.Delete(ctx, o)
 		if apierrors.IsNotFound(err) {
@@ -308,14 +315,34 @@ func (t *TestEnvironment) Cleanup(ctx context.Context, objs ...client.Object) er
 			// objects within it.
 			continue
 		}
+		err = t.pollForObject(ctx, o, func(err error) bool {
+			if err == nil || (err != nil && !apierrors.IsNotFound(err)) {
+				return false
+			}
+			return true
+		})
 		errs = append(errs, err)
 	}
 	return kerrors.NewAggregate(errs)
 }
 
+func (t *TestEnvironment) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	err := t.Client.Create(ctx, obj, opts...)
+	if err != nil {
+		return err
+	}
+	// confirm that the cache is updated with the newly created object
+	return t.pollForObject(ctx, obj, func(err error) bool {
+		if err != nil && apierrors.IsNotFound(err) {
+			return false
+		}
+		return true
+	})
+}
+
 // CreateObj wraps around client.Create and creates the object.
 func (t *TestEnvironment) CreateObj(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-	return t.Client.Create(ctx, obj, opts...)
+	return t.Create(ctx, obj, opts...)
 }
 
 func (t *TestEnvironment) CreateNamespace(ctx context.Context, generateName string) (*corev1.Namespace, error) {
@@ -327,9 +354,26 @@ func (t *TestEnvironment) CreateNamespace(ctx context.Context, generateName stri
 			},
 		},
 	}
-	if err := t.Client.Create(ctx, ns); err != nil {
+	if err := t.Create(ctx, ns); err != nil {
 		return nil, err
 	}
 
 	return ns, nil
+}
+
+// pollForObject provides a mechanism to intermittently poll the API server for a specific object
+// until the objectConfirmationTimeout is reached.
+// It requires a condition function to terminate the polling.
+//
+// The polling is terminated if the condition function returns success before the
+// timeout duration is reached.
+func (t *TestEnvironment) pollForObject(ctx context.Context, obj client.Object, pollTerminateFunc func(error) bool) error {
+	return util.PollImmediate(objectConfirmationInterval, objectConfirmationTimeout, func() (bool, error) {
+		o := obj.DeepCopyObject().(client.Object)
+		key, _ := client.ObjectKeyFromObject(o)
+		err := t.Get(ctx, key, o)
+		// return nil instead of the error, because we want the polling to continue
+		// until the condition is met or a timeout occurs.
+		return pollTerminateFunc(err), nil
+	})
 }

@@ -20,8 +20,6 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -297,33 +295,12 @@ kind: ClusterConfiguration
 				// NB. deep copy test object so changes applied during a test does not affect other tests.
 				o := o.DeepCopyObject().(client.Object)
 				g.Expect(testEnv.Create(ctx, o)).To(Succeed())
-				// this makes sure that the cache is updated with the object
-				// to avoid 404 errors leading to test flakes
-				g.Eventually(func() bool {
-					key, _ := client.ObjectKeyFromObject(o)
-					err := testEnv.Get(ctx, key, o)
-					if err != nil && apierrors.IsNotFound(err) {
-						return false
-					}
-					return true
-				}, "10s").Should(BeTrue())
 			}
 
 			// Register cleanup function
 			t.Cleanup(func() {
 				// Cleanup test objects (and wait for deletion to complete).
 				_ = testEnv.Cleanup(ctx, tt.objs...)
-				g.Eventually(func() bool {
-					for _, o := range []client.Object{cm, depl, kubeadmCM, badCM} {
-						o := o.DeepCopyObject().(client.Object)
-						key, _ := client.ObjectKeyFromObject(o)
-						err := testEnv.Get(ctx, key, o)
-						if err == nil || (err != nil && !apierrors.IsNotFound(err)) {
-							return false
-						}
-					}
-					return true
-				}, "10s").Should(BeTrue())
 			})
 
 			w := &Workload{
