@@ -262,7 +262,7 @@ func (r *ClusterReconciler) reconcileKubeconfig(ctx context.Context, cluster *cl
 		return ctrl.Result{}, nil
 	}
 
-	_, err := secret.Get(ctx, r.Client, util.ObjectKey(cluster), secret.Kubeconfig)
+	kubecfg, err := secret.Get(ctx, r.Client, util.ObjectKey(cluster), secret.Kubeconfig)
 	switch {
 	case apierrors.IsNotFound(err):
 		if err := kubeconfig.CreateSecret(ctx, r.Client, cluster); err != nil {
@@ -274,6 +274,10 @@ func (r *ClusterReconciler) reconcileKubeconfig(ctx context.Context, cluster *cl
 		}
 	case err != nil:
 		return ctrl.Result{}, errors.Wrapf(err, "failed to retrieve Kubeconfig Secret for Cluster %q in namespace %q", cluster.Name, cluster.Namespace)
+	}
+	// updates type field for secret containing data for pre-v1alpha4 generated kubeconfig
+	if err := secret.MarkAsCore(ctx, r.Client, kubecfg); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
