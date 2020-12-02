@@ -220,7 +220,7 @@ func (c Certificates) Lookup(ctx context.Context, ctrlclient client.Client, clus
 		}
 
 		// updates type field for secret containing data for pre-v1alpha4 generated certificate
-		if err := MarkAsCore(ctx, ctrlclient, s); err != nil {
+		if err := RegenrateAsCore(ctx, ctrlclient, s); err != nil {
 			return err
 		}
 		certificate.KeyPair = kp

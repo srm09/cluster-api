@@ -276,7 +276,7 @@ func (r *ClusterReconciler) reconcileKubeconfig(ctx context.Context, cluster *cl
 		return ctrl.Result{}, errors.Wrapf(err, "failed to retrieve Kubeconfig Secret for Cluster %q in namespace %q", cluster.Name, cluster.Namespace)
 	}
 	// updates type field for secret containing data for pre-v1alpha4 generated kubeconfig
-	if err := secret.MarkAsCore(ctx, r.Client, kubecfg); err != nil {
+	if err := secret.RegenrateAsCore(ctx, r.Client, kubecfg); err != nil {
 		return ctrl.Result{}, err
 	}
 
